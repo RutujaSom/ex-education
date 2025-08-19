@@ -22,11 +22,11 @@ def send_forgot_password_otp(email):
     })
 
     # Send email
-    # frappe.sendmail(
-    #     recipients=[email],
-    #     subject="Password Reset OTP",
-    #     message=f"Your OTP for password reset is {otp}. It will expire in 10 minutes."
-    # )
+    frappe.sendmail(
+        recipients=[email],
+        subject="Password Reset OTP",
+        message=f"Your OTP for password reset is {otp}. It will expire in 10 minutes."
+    )
 
     return {"message": "OTP sent to your email."}
 

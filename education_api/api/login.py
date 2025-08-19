@@ -1,4 +1,82 @@
-# my_app/api/auth.py
+# # my_app/api/auth.py
+# import frappe
+# from frappe import _
+# from frappe.auth import LoginManager
+
+# @frappe.whitelist(allow_guest=True)
+# def login_and_get_token():
+#     """
+#     POST JSON or form-data:
+#       { "usr": "email@example.com", "pwd": "password" }
+
+#     Returns JSON with API key, API secret, and user info.
+#     """
+#     data = frappe.local.form_dict or frappe.request.get_json(force=True, silent=True) or {}
+#     login = data.get("usr") or data.get("username") or data.get("email")
+#     pwd = data.get("pwd") or data.get("password")
+
+#     if not usr or not pwd:
+#         frappe.throw(_("Username and password are required"), frappe.AuthenticationError)
+
+#     try:
+#         # 1️⃣ Authenticate
+#         lm = LoginManager()
+#         lm.authenticate(user=usr, pwd=pwd)
+#         lm.post_login()
+
+#         # 2️⃣ Create new API key + secret for this login
+#         user_doc = frappe.get_doc("User", frappe.session.user)
+#         api_key, api_secret = _generate_new_api_token(user_doc)
+
+#         # 3️⃣ Return success with tokens + user info
+#         return {
+#             "status": "success",
+#             "user": {
+#                 "name": user_doc.name,
+#                 "email": user_doc.email,
+#                 "full_name": user_doc.full_name,
+#                 "roles": [r.role for r in user_doc.roles]
+#             },
+#             "token": {
+#                 "api_key": api_key,
+#                 "api_secret": api_secret
+#             }
+#         }
+
+#     except frappe.AuthenticationError:
+#         frappe.local.response.http_status_code = 401
+#         return {"status": "error", "message": _("Invalid login credentials")}
+#     except Exception as e:
+#         frappe.log_error(frappe.get_traceback(), "Login and Token API Error")
+#         frappe.local.response.http_status_code = 500
+#         return {"status": "error", "message": str(e)}
+
+
+# def get_user_id_from_input(login_input):
+#     """Detect phone number and fetch corresponding user id."""
+#     if login_input.isdigit():  # Simple check for phone number
+#         user = frappe.db.get_value("User", {"phone": login_input}, "name")
+#         if user:
+#             return user
+#     return login_input
+
+    
+
+# def _generate_new_api_token(user_doc):
+#     """Generates a fresh API key & secret for the given user."""
+#     import secrets
+
+#     # Generate API key & secret
+#     api_key = secrets.token_urlsafe(15)
+#     api_secret = secrets.token_urlsafe(15)
+
+#     # Store in the User record (overwrite old ones)
+#     user_doc.api_key = api_key
+#     user_doc.api_secret = api_secret
+#     user_doc.save(ignore_permissions=True)
+
+#     return api_key, api_secret
+
 import frappe
 from frappe import _
 from frappe.auth import LoginManager
@@ -7,16 +85,19 @@ from frappe.auth import LoginManager
 def login_and_get_token():
     """
     POST JSON or form-data:
-      { "usr": "email@example.com", "pwd": "password" }
+      { "usr": "email@example.com" or phone number, "pwd": "password" }
 
     Returns JSON with API key, API secret, and user info.
     """
     data = frappe.local.form_dict or frappe.request.get_json(force=True, silent=True) or {}
-    usr = data.get("usr") or data.get("username") or data.get("email")
+    login_input = data.get("usr") or data.get("username") or data.get("email")
     pwd = data.get("pwd") or data.get("password")
 
-    if not usr or not pwd:
-        frappe.throw(_("Username and password are required"), frappe.AuthenticationError)
+    if not login_input or not pwd:
+        frappe.throw(_("Username/Email/Phone and password are required"), frappe.AuthenticationError)
+
+    # Detect phone number and fetch actual username/email from DB
+    usr = get_user_id_from_input(login_input)
 
     try:
         # 1️⃣ Authenticate
@@ -51,13 +132,23 @@ def login_and_get_token():
         frappe.local.response.http_status_code = 500
         return {"status": "error", "message": str(e)}
 
+
+def get_user_id_from_input(login_input):
+    """Detect phone number and fetch corresponding user id."""
+    if login_input.isdigit():  # If numeric, treat as phone number
+        user = frappe.db.get_value("User", {"phone": login_input}, "name")
+        if user:
+            return user
+    return login_input
+
+
 def _generate_new_api_token(user_doc):
     """Generates a fresh API key & secret for the given user."""
     import secrets
 
-    # Generate API key & secret
-    api_key = secrets.token_urlsafe(16)
-    api_secret = secrets.token_urlsafe(32)
+    # Generate API key & secret (shortened to 15 chars)
+    api_key = secrets.token_urlsafe(15)
+    api_secret = secrets.token_urlsafe(15)
 
     # Store in the User record (overwrite old ones)
     user_doc.api_key = api_key
@@ -65,6 +156,7 @@ def _generate_new_api_token(user_doc):
     user_doc.save(ignore_permissions=True)
 
     return api_key, api_secret
+
 
 
 
